@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  aegis-db:
+    image: postgres:16-alpine
+    container_name: aegis-db
+
+    environment:
+      POSTGRES_USER: aegis_admin
+      POSTGRES_PASSWORD: audit_password_2026
+      POSTGRES_DB: aegis_vault
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - aegis_data:/var/lib/postgresql/data
+
+volumes:
+  aegis_data:

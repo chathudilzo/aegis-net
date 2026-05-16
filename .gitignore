@@ -1,0 +1,56 @@
+# --- General / OS ---
+.DS_Store
+.env
+.env.local
+*.log
+.vscode/
+.idea/
+
+# --- Go (Recon Engine) ---
+services/recon-engine/bin/
+services/recon-engine/recon-engine
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# --- Java Spring Boot (Audit Brain) ---
+services/audit-brain/target/
+services/audit-brain/.mvn/
+services/audit-brain/*.jar
+services/audit-brain/*.war
+services/audit-brain/*.zip
+services/audit-brain/*.tar.gz
+services/audit-brain/.classpath
+services/audit-brain/.project
+services/audit-brain/.settings/
+
+# --- Next.js / Node (SOC Dashboard) ---
+apps/soc-dashboard/node_modules/
+apps/soc-dashboard/.next/
+apps/soc-dashboard/out/
+apps/soc-dashboard/build/
+apps/soc-dashboard/.vercel/
+apps/soc-dashboard/npm-debug.log*
+apps/soc-dashboard/yarn-error.log*
+
+# --- Flutter (Incident Mobile) ---
+apps/incident-mobile/.dart_tool/
+apps/incident-mobile/.flutter-plugins
+apps/incident-mobile/.flutter-plugins-dependencies
+apps/incident-mobile/.packages
+apps/incident-mobile/build/
+apps/incident-mobile/ios/Flutter/Generated.xcconfig
+apps/incident-mobile/ios/Flutter/flutter_export_environment.sh
+apps/incident-mobile/android/app/src/main/res/values/strings.xml
+apps/incident-mobile/pubspec.lock
+
+# --- Infrastructure & GCP ---
+infra/db_data/
+*.json
+# Specifically ignore GCP service account keys
+service-account-key.json
+
+# --- Docker ---
+.docker/
