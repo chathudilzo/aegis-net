@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+type ScanRequest struct {
+	TargetZones []string `json:"targetZones"`
+}
+
 type Finding struct {
 	TargetIp string `json:"targetIp"`
 	Port     int    `json:"port"`
@@ -20,35 +24,83 @@ type Finding struct {
 	Insight  string `json:"insight"`
 }
 
+var scanMutex sync.Mutex
+
 func main() {
 	fmt.Println("Aegis Recon Engine | Booting up...")
-	fmt.Println("Listening on Port 8081 for launch commands from the Brain...")
 
+	go startAutonomousSentinel()
+
+	fmt.Println("Listening on Port 8081 for manual launch commands...")
 	http.HandleFunc("/api/scan", handleScanRequest)
-	
+
 	err := http.ListenAndServe(":8081", nil)
 	if err != nil {
 		fmt.Printf("Engine crashed: %v\n", err)
 	}
 }
 
-func handleScanRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("\n Executing Multi-Zone Sweep...")
+func startAutonomousSentinel() {
 	
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte("Scan initiated successfully in the background."))
+	ticker := time.NewTicker(30 * time.Minute) 
+	defer ticker.Stop()
 
-	go executeSweep() 
-}
-
-func executeSweep() {
-	auditZones := []string{
+	defaultZones := []string{
 		"203.0.113.0/26",
 		"10.0.5.0/24",
-		"45.33.32.156/32", 
-		"127.0.0.1/32",    
+		"45.33.32.156/32",
+		"127.0.0.1/32",
 	}
-	
+
+	fmt.Println("Autonomous Sentinel Online. Guarding networks...")
+
+	for {
+		<-ticker.C
+		fmt.Println("\n[SENTINEL] Executing routine background sweep...")
+		
+		go executeSweep(defaultZones)
+	}
+}
+
+func handleScanRequest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	fmt.Println("\n[MANUAL OVERRIDE] Launch command received from Dashboard.")
+
+	zonesToScan := []string{
+		"203.0.113.0/26",
+		"10.0.5.0/24",
+		"45.33.32.156/32",
+		"127.0.0.1/32",
+	}
+
+	if r.Method == http.MethodPost {
+		var req ScanRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		
+		if err == nil && len(req.TargetZones) > 0 {
+			fmt.Printf("Custom Target Received: %v\n", req.TargetZones)
+			zonesToScan = req.TargetZones
+		}
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte("Manual scan initiated successfully."))
+
+	go executeSweep(zonesToScan)
+}
+
+func executeSweep(auditZones []string) {
+	scanMutex.Lock()
+	defer scanMutex.Unlock()
+
 	portsToScan := []int{22, 80, 443, 3389, 5432, 3306, 9090, 31337}
 	var masterTargetList []string
 
@@ -58,6 +110,8 @@ func executeSweep() {
 			masterTargetList = append(masterTargetList, ips...)
 		}
 	}
+    
+	fmt.Printf("Sweeping %d IPs...\n", len(masterTargetList))
 
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan struct{}, 100)
@@ -75,7 +129,7 @@ func executeSweep() {
 	}
 
 	waitGroup.Wait()
-	fmt.Println("Sweep Complete. Awaiting next command...")
+	fmt.Println("Sweep Complete. Vault updated.")
 }
 
 func expandCIDR(cidr string) ([]string, error) {
@@ -118,6 +172,9 @@ func scanSinglePort(ip string, port int) {
 	if strings.Contains(serviceName, "Web Server") {
 		insight = lookForSecrets(ip, port)
 	}
+	
+	
+
 	reportToBrain(ip, port, serviceName, insight)
 }
 

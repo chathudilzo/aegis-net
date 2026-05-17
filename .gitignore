@@ -36,15 +36,15 @@ apps/soc-dashboard/npm-debug.log*
 apps/soc-dashboard/yarn-error.log*
 
 # --- Flutter (Incident Mobile) ---
-apps/incident-mobile/.dart_tool/
-apps/incident-mobile/.flutter-plugins
-apps/incident-mobile/.flutter-plugins-dependencies
-apps/incident-mobile/.packages
-apps/incident-mobile/build/
-apps/incident-mobile/ios/Flutter/Generated.xcconfig
-apps/incident-mobile/ios/Flutter/flutter_export_environment.sh
-apps/incident-mobile/android/app/src/main/res/values/strings.xml
-apps/incident-mobile/pubspec.lock
+apps/aegis_mobile/.dart_tool/
+apps/aegis_mobile/.flutter-plugins
+apps/aegis_mobile/.flutter-plugins-dependencies
+apps/aegis_mobile/.packages
+apps/aegis_mobile/build/
+apps/aegis_mobile/ios/Flutter/Generated.xcconfig
+apps/aegis_mobile/ios/Flutter/flutter_export_environment.sh
+apps/aegis_mobile/android/app/src/main/res/values/strings.xml
+apps/aegis_mobile/pubspec.lock
 
 # --- Infrastructure & GCP ---
 infra/db_data/

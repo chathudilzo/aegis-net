@@ -71,4 +71,9 @@ public class AuditController {
     public List<Finding> viewVault() {
         return findingRepository.findAll();
     }
+    @DeleteMapping
+    public void purgeVault() {
+        System.out.println("Purge command received. Wiping all audit findings...");
+        findingRepository.deleteAll();
+    }
 }
