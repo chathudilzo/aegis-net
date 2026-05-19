@@ -15,21 +15,33 @@ public class AuditController {
     private FindingRepository findingRepository;
 
     @Autowired
-    private PolicyRepository policyRepository; // NEW: To check your internal rules
+    private PolicyRepository policyRepository; 
 
     @Autowired
-    private VulnerabilityService vulnerabilityService; // NEW: To check global hacks
+    private VulnerabilityService vulnerabilityService; 
+
+    @Autowired
+    private NotificationService notificationService;
+
+    private String activeMobileToken = null;
+
+    @PostMapping("/register-token")
+    public String registerToken(@RequestBody String fcmToken) {
+        this.activeMobileToken = fcmToken.replace("\"", "").trim();
+        System.out.println("[BRAIN] FCM Token Registered for Mobile Alerts.");
+        return "TOKEN_REGISTERED";
+    }
 
     @PostMapping
     public Finding receiveScanResult(@RequestBody Finding incomingFinding) {
-        System.out.println(">>> [BRAIN] Processing Scan Result for " + incomingFinding.getTargetIp() + ":" + incomingFinding.getPort());
+        System.out.println(" Processing Scan Result for " + incomingFinding.getTargetIp() + ":" + incomingFinding.getPort());
 
-       List<Policy> matchingPolicies = policyRepository.findMatchingPolicies(
+        List<Policy> matchingPolicies = policyRepository.findMatchingPolicies(
                 incomingFinding.getTargetIp(), 
                 incomingFinding.getPort()
         );
 
-   String auditResult;
+        String auditResult;
         if (!matchingPolicies.isEmpty()) {
             Policy matchedPolicy = matchingPolicies.get(0); 
             
@@ -49,6 +61,15 @@ public class AuditController {
             incomingFinding.setInsight(intel);
         }
 
+        
+        if (("POLICY_VIOLATION".equals(auditResult) || "SERVICE_MISMATCH".equals(auditResult))) {
+            if (activeMobileToken != null) {
+                notificationService.sendBroadcastAlert(activeMobileToken, incomingFinding);
+            } else {
+                System.out.println("[BRAIN] Violation detected, but no mobile device is registered to receive alerts.");
+            }
+        }
+
         Optional<Finding> existingFinding = findingRepository.findByTargetIpAndPort(
                 incomingFinding.getTargetIp(), 
                 incomingFinding.getPort()
@@ -61,6 +82,8 @@ public class AuditController {
             dbFinding.setInsight(incomingFinding.getInsight()); 
             dbFinding.setAuditResult(incomingFinding.getAuditResult()); 
             
+            dbFinding.setScanType(incomingFinding.getScanType());
+            
             return findingRepository.save(dbFinding);
         } else {
             return findingRepository.save(incomingFinding);
@@ -71,6 +94,7 @@ public class AuditController {
     public List<Finding> viewVault() {
         return findingRepository.findAll();
     }
+    
     @DeleteMapping
     public void purgeVault() {
         System.out.println("Purge command received. Wiping all audit findings...");

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -12,8 +13,14 @@ import (
 	"time"
 )
 
+type ScanConfig struct {
+	Zones []string `json:"zones"`
+	Ports []int    `json:"ports"`
+}
+
 type ScanRequest struct {
 	TargetZones []string `json:"targetZones"`
+	TargetPorts []int    `json:"targetPorts"`
 }
 
 type Finding struct {
@@ -22,6 +29,7 @@ type Finding struct {
 	Service  string `json:"service"`
 	Status   string `json:"status"`
 	Insight  string `json:"insight"`
+	ScanType string `json:"scanType"`
 }
 
 var scanMutex sync.Mutex
@@ -31,7 +39,7 @@ func main() {
 
 	go startAutonomousSentinel()
 
-	fmt.Println("Listening on Port 8081 for manual launch commands...")
+	fmt.Println(" Listening on Port 8081 for manual launch commands...")
 	http.HandleFunc("/api/scan", handleScanRequest)
 
 	err := http.ListenAndServe(":8081", nil)
@@ -40,25 +48,37 @@ func main() {
 	}
 }
 
-func startAutonomousSentinel() {
-	
-	ticker := time.NewTicker(30 * time.Minute) 
-	defer ticker.Stop()
-
-	defaultZones := []string{
-		"203.0.113.0/26",
-		"10.0.5.0/24",
-		"45.33.32.156/32",
-		"127.0.0.1/32",
+func fetchConfigFromBrain() (ScanConfig, error) {
+	resp, err := http.Get("http://localhost:9090/api/config")
+	if err != nil {
+		return ScanConfig{}, err
 	}
+	defer resp.Body.Close()
+
+	var config ScanConfig
+	body, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(body, &config)
+
+	return config, nil
+}
+
+func startAutonomousSentinel() {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
 
 	fmt.Println("Autonomous Sentinel Online. Guarding networks...")
 
 	for {
 		<-ticker.C
-		fmt.Println("\n[SENTINEL] Executing routine background sweep...")
 		
-		go executeSweep(defaultZones)
+		config, err := fetchConfigFromBrain()
+		if err != nil || len(config.Zones) == 0 || len(config.Ports) == 0 {
+			fmt.Println("[SENTINEL] Could not fetch config from Brain or config is empty. Skipping cycle.")
+			continue
+		}
+
+		fmt.Println("\n[SENTINEL] Executing routine background sweep...")
+		go executeSweep(config.Zones, config.Ports, "AUTO")
 	}
 }
 
@@ -74,34 +94,38 @@ func handleScanRequest(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("\n[MANUAL OVERRIDE] Launch command received from Dashboard.")
 
-	zonesToScan := []string{
-		"203.0.113.0/26",
-		"10.0.5.0/24",
-		"45.33.32.156/32",
-		"127.0.0.1/32",
+	config, err := fetchConfigFromBrain()
+	if err != nil {
+		http.Error(w, "Cannot reach Brain for port configuration", http.StatusInternalServerError)
+		return
 	}
 
+	zonesToScan := config.Zones
+portsToScan := config.Ports
 	if r.Method == http.MethodPost {
 		var req ScanRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		
-		if err == nil && len(req.TargetZones) > 0 {
-			fmt.Printf("Custom Target Received: %v\n", req.TargetZones)
-			zonesToScan = req.TargetZones
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			if len(req.TargetZones) > 0 {
+				fmt.Printf("Custom Target Received: %v\n", req.TargetZones)
+				zonesToScan = req.TargetZones
+			}
+			if len(req.TargetPorts) > 0 {
+				fmt.Printf("Custom Ports Received: %v\n", req.TargetPorts)
+				portsToScan = req.TargetPorts
+			}
 		}
 	}
 
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte("Manual scan initiated successfully."))
 
-	go executeSweep(zonesToScan)
+	go executeSweep(zonesToScan, portsToScan, "MANUAL")
 }
 
-func executeSweep(auditZones []string) {
+func executeSweep(auditZones []string, portsToScan []int, scanType string) {
 	scanMutex.Lock()
 	defer scanMutex.Unlock()
 
-	portsToScan := []int{22, 80, 443, 3389, 5432, 3306, 9090, 31337}
 	var masterTargetList []string
 
 	for _, zone := range auditZones {
@@ -110,8 +134,8 @@ func executeSweep(auditZones []string) {
 			masterTargetList = append(masterTargetList, ips...)
 		}
 	}
-    
-	fmt.Printf("Sweeping %d IPs...\n", len(masterTargetList))
+
+	fmt.Printf("Sweeping %d IPs across %d ports (%s Scan)...\n", len(masterTargetList), len(portsToScan), scanType)
 
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan struct{}, 100)
@@ -122,7 +146,7 @@ func executeSweep(auditZones []string) {
 			go func(targetIp string, targetPort int) {
 				defer waitGroup.Done()
 				semaphore <- struct{}{}
-				scanSinglePort(targetIp, targetPort)
+				scanSinglePort(targetIp, targetPort, scanType)
 				<-semaphore
 			}(ip, port)
 		}
@@ -159,7 +183,7 @@ func inc(ip net.IP) {
 	}
 }
 
-func scanSinglePort(ip string, port int) {
+func scanSinglePort(ip string, port int, scanType string) {
 	address := fmt.Sprintf("%s:%d", ip, port)
 	connection, err := net.DialTimeout("tcp", address, 2*time.Second)
 	if err != nil {
@@ -172,19 +196,18 @@ func scanSinglePort(ip string, port int) {
 	if strings.Contains(serviceName, "Web Server") {
 		insight = lookForSecrets(ip, port)
 	}
-	
-	
 
-	reportToBrain(ip, port, serviceName, insight)
+	reportToBrain(ip, port, serviceName, insight, scanType)
 }
 
-func reportToBrain(ip string, port int, serviceName string, insight string) {
+func reportToBrain(ip string, port int, serviceName string, insight string, scanType string) {
 	data := Finding{
 		TargetIp: ip,
 		Port:     port,
 		Service:  serviceName,
 		Status:   "OPEN",
 		Insight:  insight,
+		ScanType: scanType, 
 	}
 	jsonData, _ := json.Marshal(data)
 	resp, err := http.Post("http://localhost:9090/api/findings", "application/json", bytes.NewBuffer(jsonData))

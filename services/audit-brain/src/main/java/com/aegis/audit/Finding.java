@@ -16,6 +16,7 @@ public class Finding {
     private String status; 
     private String insight;
     private String auditResult;
+    private String scanType;
     private LocalDateTime discoveredAt = LocalDateTime.now();
 
     public Finding() {} 
@@ -26,6 +27,9 @@ public class Finding {
     public int getPort() { return port; }
     public void setPort(int port) { this.port = port; }
     public String getService() { return service; }
+
+    public void setScanType(String scanType) { this.scanType = scanType; }
+    public String getScanType() { return scanType; }
     public void setService(String service) { this.service = service; }
     public String getStatus() { return status; }
     public String getAuditResult() { return auditResult; }

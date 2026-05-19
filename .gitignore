@@ -25,6 +25,7 @@ services/audit-brain/*.tar.gz
 services/audit-brain/.classpath
 services/audit-brain/.project
 services/audit-brain/.settings/
+services/audit-brain/service-account.json
 
 # --- Next.js / Node (SOC Dashboard) ---
 apps/soc-dashboard/node_modules/
@@ -45,6 +46,8 @@ apps/aegis_mobile/ios/Flutter/Generated.xcconfig
 apps/aegis_mobile/ios/Flutter/flutter_export_environment.sh
 apps/aegis_mobile/android/app/src/main/res/values/strings.xml
 apps/aegis_mobile/pubspec.lock
+firebase.json
+firebase_options.dart
 
 # --- Infrastructure & GCP ---
 infra/db_data/
@@ -54,3 +57,4 @@ service-account-key.json
 
 # --- Docker ---
 .docker/
+
