@@ -5,6 +5,8 @@ A distributed Security Operations Center (SOC) and network reconnaissance engine
 
 https://github.com/user-attachments/assets/9a54181a-a0ab-462e-a424-3ef4d59c49d9
 
+### Youtube
+https://youtu.be/93bHKq9uT8k
 
 ## Architecture
 
